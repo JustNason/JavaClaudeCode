@@ -41,7 +41,7 @@ public class Main {
                                 .parameters(
                                         FunctionParameters.builder()
                                                 .putAdditionalProperty("type", JsonValue.from("object"))
-                                                .putAdditionalProperty("properties", JsonValue.from("\"file_path\": { \"type\": \"string\",\"description\": \"The path to the file to read\""))
+                                                .putAdditionalProperty("properties", JsonValue.from("\"file_path\": { \"type\": \"string\",\"description\": \"The path to the file to read\"}"))
                                                 .putAdditionalProperty("required", JsonValue.from("[\"file_path\"]"))
                                                 .build()
                                 )
