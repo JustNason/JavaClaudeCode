@@ -1,17 +1,20 @@
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.util.JSONPObject;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.core.JsonObject;
 import com.openai.core.JsonValue;
 import com.openai.models.FunctionDefinition;
 import com.openai.models.FunctionParameters;
-import com.openai.models.chat.completions.ChatCompletion;
-import com.openai.models.chat.completions.ChatCompletionCreateParams;
-import com.openai.models.chat.completions.ChatCompletionTokenLogprob;
+import com.openai.models.chat.completions.*;
+import tools.Read;
+
+import static com.openai.core.ObjectMappers.jsonMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-
-import com.openai.models.chat.completions.ChatCompletionTool;
+import java.util.Optional;
 
 public class Main {
     public static void main(String[] args) {
@@ -21,6 +24,8 @@ public class Main {
         }
 
         String prompt = args[1];
+
+        Read fileReader = new Read();
 
         String apiKey = System.getenv("OPENROUTER_API_KEY");
         String baseUrl = System.getenv("OPENROUTER_BASE_URL");
@@ -73,11 +78,30 @@ public class Main {
         if (response.choices().isEmpty()) {
             throw new RuntimeException("no choices in response");
         }
+        else {
+            ChatCompletionMessage message = response.choices().get(0).message();
+            if(message.toolCalls().isPresent()) {
+                for (ChatCompletionMessageToolCall tool: message.toolCalls().get()) {
+                    if (tool.function().name().equals("Read")) {
+                        try {
+                            String path = jsonMapper().readTree(tool.function().arguments()).get("file_path").asText();
+                            String contents = fileReader.readFileContents(path);
+                            System.out.println(contents);
+
+                        }
+                        catch (JsonProcessingException e) {
+
+                        }
+                    }
+                }
+            }
+        }
 
         // You can use print statements as follows for debugging, they'll be visible when running tests.
         System.err.println("Logs from your program will appear here!");
 
         // TODO: Uncomment the line below to pass the first stage
+
         System.out.print(response.choices().get(0).message().content().orElse(""));
     }
 }
