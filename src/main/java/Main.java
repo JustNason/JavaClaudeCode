@@ -6,6 +6,11 @@ import com.openai.models.FunctionParameters;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import com.openai.models.chat.completions.ChatCompletionTokenLogprob;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+
 import com.openai.models.chat.completions.ChatCompletionTool;
 
 public class Main {
@@ -41,8 +46,15 @@ public class Main {
                                 .parameters(
                                         FunctionParameters.builder()
                                                 .putAdditionalProperty("type", JsonValue.from("object"))
-                                                .putAdditionalProperty("properties", JsonValue.from("\"file_path\": { \"type\": \"string\",\"description\": \"The path to the file to read\"}"))
-                                                .putAdditionalProperty("required", JsonValue.from("[\"file_path\"]"))
+                                                .putAdditionalProperty("properties", JsonValue.from(Map.of(
+                                                        "file_path", Map.of(
+                                                                "type", "string",
+                                                                "description", "The path to the file to read"
+                                                                                )
+                                                                )
+                                                        )
+                                                )
+                                                .putAdditionalProperty("required", JsonValue.from(List.of("file_path")))
                                                 .build()
                                 )
                                 .build()
