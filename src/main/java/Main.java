@@ -3,6 +3,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.chat.completions.*;
+import tools.BashTool;
 import tools.ReadTool;
 import tools.WriteTool;
 
@@ -41,6 +42,7 @@ public class Main {
 
         ChatCompletionTool readTool = ReadTool.create();
         ChatCompletionTool writeTool = WriteTool.create();
+        ChatCompletionTool bashTool = BashTool.create();
 
         System.err.println("Logs from your program will appear here!");
 
@@ -53,6 +55,7 @@ public class Main {
                     .messages(messages.messagesList)
                     .addTool(readTool)
                     .addTool(writeTool)
+                    .addTool(bashTool)
                     .build();
 
             ChatCompletion response = client.chat().completions().create(
@@ -94,6 +97,19 @@ public class Main {
                             }
                             catch (JsonProcessingException e) {
                                 System.err.println("Error processing file path Json. Exception: " + e.getMessage());
+                            }
+                        }
+                        else if (tool.function().name().equals("Bash")) {
+                            try {
+                                String command = jsonMapper().readTree(tool.function().arguments()).get("command").asText();
+
+                                String contents = BashTool.runBashCommand(command);
+
+                                messages.appendTool(tool.id(), contents);
+
+                            }
+                            catch (JsonProcessingException e) {
+                                throw new RuntimeException(e);
                             }
                         }
                     }
