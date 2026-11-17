@@ -1,17 +1,15 @@
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
-import com.openai.core.JsonValue;
-import com.openai.models.FunctionDefinition;
-import com.openai.models.FunctionParameters;
 import com.openai.models.chat.completions.*;
 import tools.ReadTool;
+import tools.WriteTool;
 
 import static com.openai.core.ObjectMappers.jsonMapper;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class Main {
 
@@ -24,8 +22,6 @@ public class Main {
         boolean runLoop = true;
 
         String prompt = args[1];
-
-        ReadTool fileReader = new ReadTool();
 
         String apiKey = System.getenv("OPENROUTER_API_KEY");
         String baseUrl = System.getenv("OPENROUTER_BASE_URL");
@@ -43,45 +39,20 @@ public class Main {
                 .build();
 
 
-        ChatCompletionTool readTool = ChatCompletionTool.builder()
-                .function(
-                        FunctionDefinition.builder()
-                                .name("Read")
-                                .description("Read and return the contents of a file")
-                                .parameters(
-                                        FunctionParameters.builder()
-                                                .putAdditionalProperty("type", JsonValue.from("object"))
-                                                .putAdditionalProperty("properties", JsonValue.from(Map.of(
-                                                        "file_path", Map.of(
-                                                                "type", "string",
-                                                                "description", "The path to the file to read"
-                                                                                )
-                                                                )
-                                                        )
-                                                )
-                                                .putAdditionalProperty("required", JsonValue.from(List.of("file_path")))
-                                                .build()
-                                )
-                                .build()
-                )
-                .build();
+        ChatCompletionTool readTool = ReadTool.create();
+        ChatCompletionTool writeTool = WriteTool.create();
 
         System.err.println("Logs from your program will appear here!");
 
-        List<ChatCompletionMessageParam> messages = new ArrayList<>();
-        messages.add(
-                ChatCompletionMessageParam.ofUser(
-                        ChatCompletionUserMessageParam.builder()
-                                .content(prompt)
-                                .build()
-                )
-        );
+        MessageArray messages = new MessageArray(prompt);
+
         while (runLoop) {
 
             ChatCompletionCreateParams chat = ChatCompletionCreateParams.builder()
                     .model("anthropic/claude-haiku-4.5")
-                    .messages(messages)
+                    .messages(messages.messagesList)
                     .addTool(readTool)
+                    .addTool(writeTool)
                     .build();
 
             ChatCompletion response = client.chat().completions().create(
@@ -92,11 +63,12 @@ public class Main {
 
 
             if (response.choices().isEmpty()) {
-                throw new RuntimeException("no choices in response");
+                throw new RuntimeException("No choices in response");
             } else {
 
                 ChatCompletionMessage message = response.choices().getLast().message();
-                messages.add(Utils.appendResponse(message.toParam()));
+                messages.appendResponse(message.toParam());
+
                 if (message.toolCalls().isPresent()) {
                     for (ChatCompletionMessageToolCall tool : message.toolCalls().get()) {
                         if (tool.function().name().equals("Read")) {
@@ -106,10 +78,22 @@ public class Main {
                                 String contents = ReadTool.readFileContents(path);
 
 
-                                messages.add(Utils.appendTool(tool.id(), contents));
-//                                System.out.println("FILE IS " + messages.toString() +  "END");
+                                messages.appendTool(tool.id(), contents);
                             } catch (JsonProcessingException e) {
+                                System.err.println("Error processing file path Json. Exception: " + e.getMessage());
+                            }
+                        }
+                        else if (tool.function().name().equals("Write")) {
+                            try {
+                                String path = jsonMapper().readTree(tool.function().arguments()).get("file_path").asText();
+                                String contents = jsonMapper().readTree(tool.function().arguments()).get("content").asText();
 
+                                contents = WriteTool.writeFile(path, contents);
+
+                                messages.appendTool(tool.id(), contents);
+                            }
+                            catch (JsonProcessingException e) {
+                                System.err.println("Error processing file path Json. Exception: " + e.getMessage());
                             }
                         }
                     }
@@ -119,13 +103,6 @@ public class Main {
                     runLoop = false;
                 }
             }
-
-
-            // You can use print statements as follows for debugging, they'll be visible when running tests.
-
-            // TODO: Uncomment the line below to pass the first stage
-
-//            System.out.print(response.choices().get(0).message().content().orElse(""));
         }
     }
 }
